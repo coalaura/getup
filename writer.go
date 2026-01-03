@@ -55,6 +55,10 @@ func (c *counter) Start() func() {
 
 				length = len(msg)
 			case <-done:
+				msg := fmt.Sprintf("Wrote %s", fmtBytes(c.n.Load()))
+
+				log.Printf("%s%s\n", msg, strings.Repeat(" ", max(0, length-len(msg))))
+
 				return
 			}
 		}
