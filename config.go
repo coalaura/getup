@@ -15,8 +15,9 @@ type Config struct {
 }
 
 type Server struct {
-	Name  string   `yaml:"name"`
-	Files []string `yaml:"files"`
+	Name   string   `yaml:"name"`
+	Target string   `yaml:"target"`
+	Files  []string `yaml:"files"`
 
 	client *ssh.Client
 	args   string
@@ -60,7 +61,11 @@ func (c *Config) Parse() error {
 
 func (s *Server) Parse() error {
 	if s.Name == "" {
-		return errors.New("missing name")
+		return errors.New("missing server name")
+	}
+
+	if s.Target == "" {
+		return errors.New("missing target directory")
 	}
 
 	if len(s.Files) == 0 {
@@ -81,6 +86,10 @@ func (s *Server) Parse() error {
 		if file[0] == '!' {
 			args.WriteString("--exclude ")
 
+			file = file[1:]
+		}
+
+		if file[0] == '/' {
 			file = file[1:]
 		}
 

@@ -3,7 +3,10 @@ package main
 import (
 	"errors"
 	"fmt"
+	"io"
 	"net"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/coalaura/scfg"
@@ -75,7 +78,50 @@ func (s *Server) Run() error {
 		return errors.New("not connected")
 	}
 
-	// TODO: implement
+	date := time.Now().Format("2006_01_02-15_04")
 
-	return nil
+	path := filepath.Join(s.Target, fmt.Sprintf("%s-%s.tar.zst", s.Name, date))
+
+	out, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+
+	defer out.Close()
+
+	session, err := s.client.NewSession()
+	if err != nil {
+		defer os.Remove(path)
+
+		return err
+	}
+
+	defer session.Close()
+
+	stdout, err := session.StdoutPipe()
+	if err != nil {
+		defer os.Remove(path)
+
+		return err
+	}
+
+	session.Stderr = os.Stderr
+
+	cmd := fmt.Sprintf("bash -lc 'tar -C / -cf - %s | zstd -T0 -3 -q'", s.args)
+
+	err = session.Start(cmd)
+	if err != nil {
+		defer os.Remove(path)
+
+		return err
+	}
+
+	_, err = io.Copy(out, stdout)
+	if err != nil {
+		defer os.Remove(path)
+
+		return err
+	}
+
+	return session.Wait()
 }
