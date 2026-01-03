@@ -1,4 +1,4 @@
-# getup
+![banner](.github/banner.png)
 
 A zero-friction tool for streaming compressed remote backups that leverages your existing SSH environment to eliminate redundant configuration.
 
