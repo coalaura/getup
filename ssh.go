@@ -116,7 +116,12 @@ func (s *Server) Run() error {
 		return err
 	}
 
-	_, err = io.Copy(out, stdout)
+	wr := NewCounter(out)
+
+	stop := wr.Start()
+	defer stop()
+
+	_, err = io.Copy(wr, stdout)
 	if err != nil {
 		defer os.Remove(path)
 
