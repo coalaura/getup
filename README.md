@@ -1,6 +1,6 @@
 # getup
 
-A minimal Go tool to stream compressed backups from remote servers over SSH. It reads your local SSH config and known hosts to authenticate, pipes a `tar` stream through `zstd` on the remote and saves the resulting archive locally.
+A zero-friction tool for streaming compressed remote backups that leverages your existing SSH environment to eliminate redundant configuration.
 
 ## Features
 
