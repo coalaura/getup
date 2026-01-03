@@ -49,7 +49,7 @@ func (c *counter) Start() func() {
 
 				last = now
 
-				msg := fmt.Sprintf("Written %s (%s)", fmtBytes(now), fmtRate(delta))
+				msg := fmt.Sprintf("Written %s (%s/s)", fmtBytes(now), fmtBytes(delta))
 
 				log.Printf("%s%s\r", msg, strings.Repeat(" ", max(0, length-len(msg))))
 
@@ -90,8 +90,4 @@ func fmtBytes(n uint64) string {
 	default:
 		return fmt.Sprintf("%d B", n)
 	}
-}
-
-func fmtRate(bytesPerSec uint64) string {
-	return fmtBytes(bytesPerSec) + "/s"
 }
