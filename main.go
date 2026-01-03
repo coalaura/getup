@@ -44,14 +44,14 @@ func handle(home string, server *Server, config scfg.Config, hosts scfg.KnownHos
 
 	defer server.Close()
 
-	log.Println("Backing up...")
+	log.Printf("Backing up %s...\n", server.Name)
 
 	err = server.Run()
 	if err != nil {
 		return err
 	}
 
-	log.Println("Completed")
+	log.Printf("Completed backing up %s\n", server.Name)
 
 	return nil
 }
