@@ -107,7 +107,7 @@ func (s *Server) Run() error {
 
 	session.Stderr = os.Stderr
 
-	cmd := fmt.Sprintf("bash -lc 'tar -C / -cf - %s | zstd -T0 -3 -q'", s.args)
+	cmd := fmt.Sprintf("bash -lc 'tar -C / -cf - %s %s | zstd -T0 -3 -q'", s.exclude, s.include)
 
 	err = session.Start(cmd)
 	if err != nil {

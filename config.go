@@ -1,10 +1,10 @@
 package main
 
 import (
-	"bytes"
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/goccy/go-yaml"
 	"golang.org/x/crypto/ssh"
@@ -19,8 +19,9 @@ type Server struct {
 	Target string   `yaml:"target"`
 	Files  []string `yaml:"files"`
 
-	client *ssh.Client
-	args   string
+	client  *ssh.Client
+	exclude string
+	include string
 }
 
 func LoadConfig(home string) (*Config, error) {
@@ -72,19 +73,20 @@ func (s *Server) Parse() error {
 		return errors.New("missing files")
 	}
 
-	var args bytes.Buffer
+	var (
+		include strings.Builder
+		exclude strings.Builder
+	)
 
 	for _, file := range s.Files {
 		if len(file) == 0 {
 			continue
 		}
 
-		if args.Len() > 0 {
-			args.WriteByte(' ')
-		}
+		var excl bool
 
 		if file[0] == '!' {
-			args.WriteString("--exclude ")
+			excl = true
 
 			file = file[1:]
 		}
@@ -93,14 +95,28 @@ func (s *Server) Parse() error {
 			file = file[1:]
 		}
 
-		args.WriteString(file)
+		if excl {
+			if exclude.Len() > 0 {
+				exclude.WriteByte(' ')
+			}
+
+			exclude.WriteString("--exclude ")
+			exclude.WriteString(file)
+		} else {
+			if include.Len() > 0 {
+				include.WriteByte(' ')
+			}
+
+			include.WriteString(file)
+		}
 	}
 
-	if args.Len() == 0 {
+	if include.Len() == 0 {
 		return errors.New("invalid files")
 	}
 
-	s.args = args.String()
+	s.include = include.String()
+	s.exclude = exclude.String()
 
 	return nil
 }
