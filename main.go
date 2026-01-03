@@ -7,9 +7,19 @@ import (
 	"github.com/coalaura/scfg"
 )
 
+var Version = "dev"
+
 var log = plain.New()
 
 func main() {
+	for _, arg := range os.Args[1:] {
+		if arg == "-v" || arg == "--version" {
+			log.Printf("getup %s\n", Version)
+
+			return
+		}
+	}
+
 	home, err := os.UserHomeDir()
 	log.MustFail(err)
 
