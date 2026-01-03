@@ -4,7 +4,8 @@ go 1.25.4
 
 require (
 	github.com/coalaura/plain v1.1.4
-	github.com/coalaura/scfg v0.1.0
+	github.com/coalaura/scfg v0.1.2
+	github.com/goccy/go-yaml v1.19.1
 	golang.org/x/crypto v0.46.0
 )
 

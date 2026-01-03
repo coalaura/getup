@@ -1,33 +1,81 @@
 package main
 
-import "golang.org/x/crypto/ssh"
+import (
+	"errors"
+	"fmt"
+	"net"
+	"time"
 
-type SSH struct {
-	conn *ssh.Client
-}
+	"github.com/coalaura/scfg"
+	"golang.org/x/crypto/ssh"
+)
 
-func NewSSH(host, port string) (*SSH, error) {
+func (s *Server) Connect(home string, config scfg.Config, hosts scfg.KnownHosts) error {
+	server, ok := config[s.Name]
+	if !ok {
+		return fmt.Errorf("unknown ssh server %q", s.Name)
+	}
+
+	auth, err := server.AuthMethod(home, nil)
+	if err != nil {
+		return err
+	}
+
+	addr := server.Addr()
+
+	timeout := server.Timeout(10 * time.Second)
+
 	cfg := &ssh.ClientConfig{
-		User:            "root",
-		Auth:            []ssh.AuthMethod{},
-		HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		User:            server.DefaultUser(),
+		Auth:            auth,
+		HostKeyCallback: hosts.HostKeyCallback(),
+		Timeout:         timeout,
 		Config: ssh.Config{
-			// Prefer AEAD ciphers first (usually fastest / lowest overhead).
 			Ciphers: []string{
 				"aes128-gcm@openssh.com",
 				"chacha20-poly1305@openssh.com",
 				"aes256-gcm@openssh.com",
-				// Fallbacks if server doesn’t offer GCM/ChaCha:
 				"aes128-ctr",
 				"aes256-ctr",
 			},
-
-			// Optional: reduce rekey frequency for large streams (trade-off: security).
-			// RekeyThreshold: 1 << 40, // ~1 TB
 		},
 	}
 
-	_ = cfg
+	dialer := net.Dialer{
+		Timeout: timeout,
+	}
 
-	return nil, nil
+	netConn, err := dialer.Dial("tcp", addr)
+	if err != nil {
+		return err
+	}
+
+	sshConn, channels, requests, err := ssh.NewClientConn(netConn, addr, cfg)
+	if err != nil {
+		netConn.Close()
+
+		return err
+	}
+
+	s.client = ssh.NewClient(sshConn, channels, requests)
+
+	return nil
+}
+
+func (s *Server) Close() error {
+	if s.client == nil {
+		return nil
+	}
+
+	return s.client.Close()
+}
+
+func (s *Server) Run() error {
+	if s.client == nil {
+		return errors.New("not connected")
+	}
+
+	// TODO: implement
+
+	return nil
 }
