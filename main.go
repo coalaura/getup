@@ -39,12 +39,12 @@ func main() {
 	log.MustFail(err)
 
 	for _, server := range servers.Servers {
-		err := handle(home, server, config, hosts)
+		err := handle(home, server, config, hosts, servers)
 		log.MustFail(err)
 	}
 }
 
-func handle(home string, server *Server, config scfg.Config, hosts scfg.KnownHosts) error {
+func handle(home string, server *Server, config scfg.Config, hosts scfg.KnownHosts, servers *Config) error {
 	log.Printf("Connecting to %s...\n", server.Name)
 
 	err := server.Connect(home, config, hosts)
@@ -56,7 +56,7 @@ func handle(home string, server *Server, config scfg.Config, hosts scfg.KnownHos
 
 	log.Printf("Backing up %s...\n", server.Name)
 
-	err = server.Run()
+	err = server.Run(servers)
 	if err != nil {
 		return err
 	}

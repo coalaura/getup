@@ -11,7 +11,8 @@ import (
 )
 
 type Config struct {
-	Servers []*Server `yaml:"servers"`
+	Password string    `yaml:"password"`
+	Servers  []*Server `yaml:"servers"`
 }
 
 type Server struct {

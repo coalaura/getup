@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"time"
 
+	"filippo.io/age"
 	"github.com/coalaura/scfg"
 	"golang.org/x/crypto/ssh"
 )
@@ -73,14 +74,20 @@ func (s *Server) Close() error {
 	return s.client.Close()
 }
 
-func (s *Server) Run() error {
+func (s *Server) Run(config *Config) error {
 	if s.client == nil {
 		return errors.New("not connected")
 	}
 
 	date := time.Now().Format("2006_01_02-15_04")
 
-	path := filepath.Join(s.Target, fmt.Sprintf("%s-%s.tar.zst", s.Name, date))
+	ext := ".tar.zst"
+
+	if config.Password != "" {
+		ext += ".age"
+	}
+
+	path := filepath.Join(s.Target, fmt.Sprintf("%s-%s%s", s.Name, date, ext))
 
 	out, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	if err != nil {
@@ -121,11 +128,48 @@ func (s *Server) Run() error {
 	stop := wr.Start()
 	defer stop()
 
-	_, err = io.Copy(wr, stdout)
+	var (
+		writer io.Writer = wr
+		closer io.Closer
+	)
+
+	if config.Password != "" {
+		recipient, err := age.NewScryptRecipient(config.Password)
+		if err != nil {
+			defer os.Remove(path)
+
+			return err
+		}
+
+		recipient.SetWorkFactor(20)
+
+		aw, err := age.Encrypt(writer, recipient)
+		if err != nil {
+			defer os.Remove(path)
+
+			return err
+		}
+
+		writer = aw
+		closer = aw
+	}
+
+	_, err = io.Copy(writer, stdout)
 	if err != nil {
+		if closer != nil {
+			closer.Close()
+		}
+
 		defer os.Remove(path)
 
 		return err
+	}
+
+	if closer != nil {
+		err = closer.Close()
+		if err != nil {
+			return err
+		}
 	}
 
 	return session.Wait()
