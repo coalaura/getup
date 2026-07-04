@@ -79,6 +79,11 @@ func (s *Server) Run(config *Config) error {
 		return errors.New("not connected")
 	}
 
+	err := s.runRemote(s.Pre)
+	if err != nil {
+		return fmt.Errorf("pre command: %w", err)
+	}
+
 	date := time.Now().Format("2006_01_02-15_04")
 
 	ext := ".tar.zst"
@@ -172,5 +177,39 @@ func (s *Server) Run(config *Config) error {
 		}
 	}
 
-	return session.Wait()
+	err = session.Wait()
+	if err != nil {
+		return err
+	}
+
+	err = s.runRemote(s.Post)
+	if err != nil {
+		defer os.Remove(path)
+
+		return fmt.Errorf("post command: %w", err)
+	}
+
+	return nil
+}
+
+func (s *Server) runRemote(cmds []string) error {
+	for _, cmd := range cmds {
+		session, err := s.client.NewSession()
+		if err != nil {
+			return err
+		}
+
+		session.Stdout = os.Stdout
+		session.Stderr = os.Stderr
+
+		err = session.Run(cmd)
+
+		session.Close()
+
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }

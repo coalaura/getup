@@ -37,13 +37,19 @@ The tool looks for a YAML configuration file at `~/.config/getup.yml`.
 ```yaml
 password: "" # Optional password to encrypt backups using age
 servers:
-  - name: web-server          # Matches entry in ~/.ssh/config
-    target: /local/backups    # Local directory to store archives
+  - name: web-server              # Matches entry in ~/.ssh/config
+    target: /local/backups        # Local directory to store archives
+    pre:                          # Optional commands to run before backup
+      - "systemctl stop nginx"
+      - "docker pause myapp"
+    post:                         # Optional commands to run after backup
+      - "docker unpause myapp"
+      - "systemctl start nginx"
     files:
-      - /etc/nginx            # Include directory
+      - /etc/nginx                # Include directory
       - /var/www
-      - "!/var/www/cache"     # Exclude directory (prefix with !)
-      - /root/.bashrc         # Include specific file
+      - "!/var/www/cache"         # Exclude directory (prefix with !)
+      - /root/.bashrc             # Include specific file
 ```
 
 ## Usage

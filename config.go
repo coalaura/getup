@@ -19,6 +19,8 @@ type Server struct {
 	Name   string   `yaml:"name"`
 	Target string   `yaml:"target"`
 	Files  []string `yaml:"files"`
+	Pre    []string `yaml:"pre"`
+	Post   []string `yaml:"post"`
 
 	client  *ssh.Client
 	exclude string
