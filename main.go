@@ -54,6 +54,15 @@ func handle(home string, server *Server, config scfg.Config, hosts scfg.KnownHos
 
 	defer server.Close()
 
+	if len(server.Pre) > 0 {
+		log.Printf("Running pre-backup scripts on %s...\n", server.Name)
+
+		err = server.RunPreScripts()
+		if err != nil {
+			return err
+		}
+	}
+
 	log.Printf("Backing up %s...\n", server.Name)
 
 	err = server.Run(servers)
@@ -62,6 +71,15 @@ func handle(home string, server *Server, config scfg.Config, hosts scfg.KnownHos
 	}
 
 	log.Printf("Completed backing up %s\n", server.Name)
+
+	if len(server.Post) > 0 {
+		log.Printf("Running post-backup scripts on %s...\n", server.Name)
+
+		err = server.RunPostScripts()
+		if err != nil {
+			return err
+		}
+	}
 
 	return nil
 }

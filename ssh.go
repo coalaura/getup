@@ -74,14 +74,17 @@ func (s *Server) Close() error {
 	return s.client.Close()
 }
 
+func (s *Server) RunPreScripts() error {
+	return s.runCommandsOnRemote(s.Pre)
+}
+
+func (s *Server) RunPostScripts() error {
+	return s.runCommandsOnRemote(s.Post)
+}
+
 func (s *Server) Run(config *Config) error {
 	if s.client == nil {
 		return errors.New("not connected")
-	}
-
-	err := s.runRemote(s.Pre)
-	if err != nil {
-		return fmt.Errorf("pre command: %w", err)
 	}
 
 	date := time.Now().Format("2006_01_02-15_04")
@@ -177,22 +180,10 @@ func (s *Server) Run(config *Config) error {
 		}
 	}
 
-	err = session.Wait()
-	if err != nil {
-		return err
-	}
-
-	err = s.runRemote(s.Post)
-	if err != nil {
-		defer os.Remove(path)
-
-		return fmt.Errorf("post command: %w", err)
-	}
-
-	return nil
+	return session.Wait()
 }
 
-func (s *Server) runRemote(cmds []string) error {
+func (s *Server) runCommandsOnRemote(cmds []string) error {
 	for _, cmd := range cmds {
 		session, err := s.client.NewSession()
 		if err != nil {
