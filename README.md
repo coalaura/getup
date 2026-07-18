@@ -75,11 +75,20 @@ tasks:
 
 ## Usage
 
-Simply run the binary. It will iterate through all tasks defined in your config:
+Run with no arguments to process every task in your config:
 
 ```bash
 getup
 ```
+
+Pass one or more task names to run only those jobs (matched case-insensitively against each task's `name` or `server` if `name` is omitted):
+
+```bash
+getup web-files
+getup web-files web-mysql
+```
+
+Tasks are still run in the order they appear in the config. Unknown names are ignored.
 
 ### Output Format
 Archives are saved using the format: `{name}-{timestamp}.tar.zst`
