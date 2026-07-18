@@ -11,11 +11,12 @@ import (
 )
 
 type Config struct {
-	Password string    `yaml:"password"`
-	Servers  []*Server `yaml:"servers"`
+	Password string  `yaml:"password"`
+	Tasks    []*Task `yaml:"tasks"`
 }
 
-type Server struct {
+type Task struct {
+	Server string   `yaml:"server"`
 	Name   string   `yaml:"name"`
 	Target string   `yaml:"target"`
 	Files  []string `yaml:"files"`
@@ -53,8 +54,8 @@ func LoadConfig(home string) (*Config, error) {
 }
 
 func (c *Config) Parse() error {
-	for _, server := range c.Servers {
-		err := server.Parse()
+	for _, task := range c.Tasks {
+		err := task.Parse()
 		if err != nil {
 			return err
 		}
@@ -63,16 +64,16 @@ func (c *Config) Parse() error {
 	return nil
 }
 
-func (s *Server) Parse() error {
-	if s.Name == "" {
+func (t *Task) Parse() error {
+	if t.Server == "" {
 		return errors.New("missing server name")
 	}
 
-	if s.Target == "" {
+	if t.Target == "" {
 		return errors.New("missing target directory")
 	}
 
-	if len(s.Files) == 0 {
+	if len(t.Files) == 0 {
 		return errors.New("missing files")
 	}
 
@@ -81,7 +82,7 @@ func (s *Server) Parse() error {
 		exclude strings.Builder
 	)
 
-	for _, file := range s.Files {
+	for _, file := range t.Files {
 		if len(file) == 0 {
 			continue
 		}
@@ -118,8 +119,16 @@ func (s *Server) Parse() error {
 		return errors.New("invalid files")
 	}
 
-	s.include = include.String()
-	s.exclude = exclude.String()
+	t.include = include.String()
+	t.exclude = exclude.String()
 
 	return nil
+}
+
+func (t *Task) ArchiveBase() string {
+	if t.Name != "" {
+		return t.Name
+	}
+
+	return t.Server
 }

@@ -14,10 +14,10 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-func (s *Server) Connect(home string, config scfg.Config, hosts scfg.KnownHosts) error {
-	server, ok := config[s.Name]
+func (t *Task) Connect(home string, config scfg.Config, hosts scfg.KnownHosts) error {
+	server, ok := config[t.Server]
 	if !ok {
-		return fmt.Errorf("unknown ssh server %q", s.Name)
+		return fmt.Errorf("unknown ssh server %q", t.Server)
 	}
 
 	auth, err := server.AuthMethod(home, nil)
@@ -61,29 +61,29 @@ func (s *Server) Connect(home string, config scfg.Config, hosts scfg.KnownHosts)
 		return err
 	}
 
-	s.client = ssh.NewClient(sshConn, channels, requests)
+	t.client = ssh.NewClient(sshConn, channels, requests)
 
 	return nil
 }
 
-func (s *Server) Close() error {
-	if s.client == nil {
+func (t *Task) Close() error {
+	if t.client == nil {
 		return nil
 	}
 
-	return s.client.Close()
+	return t.client.Close()
 }
 
-func (s *Server) RunPreScripts() error {
-	return s.runCommandsOnRemote(s.Pre)
+func (t *Task) RunPreScripts() error {
+	return t.runCommandsOnRemote(t.Pre)
 }
 
-func (s *Server) RunPostScripts() error {
-	return s.runCommandsOnRemote(s.Post)
+func (t *Task) RunPostScripts() error {
+	return t.runCommandsOnRemote(t.Post)
 }
 
-func (s *Server) Run(config *Config) error {
-	if s.client == nil {
+func (t *Task) Run(config *Config) error {
+	if t.client == nil {
 		return errors.New("not connected")
 	}
 
@@ -95,7 +95,7 @@ func (s *Server) Run(config *Config) error {
 		ext += ".age"
 	}
 
-	path := filepath.Join(s.Target, fmt.Sprintf("%s-%s%s", s.Name, date, ext))
+	path := filepath.Join(t.Target, fmt.Sprintf("%s-%s%s", t.ArchiveBase(), date, ext))
 
 	out, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
 	if err != nil {
@@ -104,7 +104,7 @@ func (s *Server) Run(config *Config) error {
 
 	defer out.Close()
 
-	session, err := s.client.NewSession()
+	session, err := t.client.NewSession()
 	if err != nil {
 		defer os.Remove(path)
 
@@ -122,7 +122,7 @@ func (s *Server) Run(config *Config) error {
 
 	session.Stderr = os.Stderr
 
-	cmd := fmt.Sprintf("bash -lc 'tar -C / -cf - %s %s | zstd -T0 -3 -q'", s.exclude, s.include)
+	cmd := fmt.Sprintf("bash -lc 'tar -C / -cf - %s %s | zstd -T0 -3 -q'", t.exclude, t.include)
 
 	err = session.Start(cmd)
 	if err != nil {
@@ -183,9 +183,9 @@ func (s *Server) Run(config *Config) error {
 	return session.Wait()
 }
 
-func (s *Server) runCommandsOnRemote(cmds []string) error {
+func (t *Task) runCommandsOnRemote(cmds []string) error {
 	for _, cmd := range cmds {
-		session, err := s.client.NewSession()
+		session, err := t.client.NewSession()
 		if err != nil {
 			return err
 		}

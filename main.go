@@ -25,7 +25,7 @@ func main() {
 
 	log.Println("Loading config...")
 
-	servers, err := LoadConfig(home)
+	cfg, err := LoadConfig(home)
 	log.MustFail(err)
 
 	log.Println("Parsing ssh config...")
@@ -38,44 +38,46 @@ func main() {
 	hosts, err := scfg.ParseKnownHosts(home)
 	log.MustFail(err)
 
-	for _, server := range servers.Servers {
-		err := handle(home, server, config, hosts, servers)
+	for _, task := range cfg.Tasks {
+		err := handle(home, task, config, hosts, cfg)
 		log.MustFail(err)
 	}
 }
 
-func handle(home string, server *Server, config scfg.Config, hosts scfg.KnownHosts, servers *Config) error {
-	log.Printf("Connecting to %s...\n", server.Name)
+func handle(home string, task *Task, config scfg.Config, hosts scfg.KnownHosts, cfg *Config) error {
+	log.Printf("Connecting to %s...\n", task.Server)
 
-	err := server.Connect(home, config, hosts)
+	err := task.Connect(home, config, hosts)
 	if err != nil {
 		return err
 	}
 
-	defer server.Close()
+	defer task.Close()
 
-	if len(server.Pre) > 0 {
-		log.Printf("Running pre-backup scripts on %s...\n", server.Name)
+	base := task.ArchiveBase()
 
-		err = server.RunPreScripts()
+	if len(task.Pre) > 0 {
+		log.Printf("Running pre-backup scripts for %s...\n", base)
+
+		err = task.RunPreScripts()
 		if err != nil {
 			return err
 		}
 	}
 
-	log.Printf("Backing up %s...\n", server.Name)
+	log.Printf("Backing up %s...\n", base)
 
-	err = server.Run(servers)
+	err = task.Run(cfg)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("Completed backing up %s\n", server.Name)
+	log.Printf("Completed backing up %s\n", base)
 
-	if len(server.Post) > 0 {
-		log.Printf("Running post-backup scripts on %s...\n", server.Name)
+	if len(task.Post) > 0 {
+		log.Printf("Running post-backup scripts for %s...\n", base)
 
-		err = server.RunPostScripts()
+		err = task.RunPostScripts()
 		if err != nil {
 			return err
 		}
