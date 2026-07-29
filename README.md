@@ -16,7 +16,7 @@ A zero-friction tool for streaming compressed remote backups that leverages your
 You can bootstrap **getup** with a single command. This script will detect your OS and CPU (`amd64`/`arm64`), download the correct binary and install it to `/usr/local/bin/getup`.
 
 ```bash
-curl -sL https://src.w2k.sh/getup/install.sh | sh
+curl -sL https://src.ws2.sh/getup/install.sh | sh
 ```
 
 ### Binary
