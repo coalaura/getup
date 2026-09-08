@@ -4,7 +4,7 @@ A zero-friction tool for streaming compressed remote backups that leverages your
 
 ## Features
 
-- **Streaming Compression**: Uses `tar` and `zstd` on the remote server to minimize bandwidth.
+- **Streaming Compression**: Supports zstd, gzip, xz, lz4, bzip2, zip or uncompressed streams.
 - **SSH Native**: Leverages your existing `~/.ssh/config` and `~/.ssh/known_hosts`.
 - **Files or Commands**: Back up selected files as a tar archive or the output of any remote command.
 - **Atomic Writes**: Streams into a `.partial` file and only exposes the completed backup after an atomic rename.
@@ -43,6 +43,8 @@ tasks:
   - server: web-server            # Matches entry in ~/.ssh/config
     name: web-files               # Used for the archive filename (falls back to server if omitted)
     target: /local/backups        # Local directory to store archives
+    compression: zstd             # Optional; defaults to zstd
+    compression-level: 3          # Optional; uses the algorithm's native level
     pre:                          # Optional commands to run before backup
       - "systemctl stop nginx"
       - "docker pause myapp"
@@ -71,15 +73,17 @@ tasks:
     command: "mysqldump --all-databases" # Compressed command output; cannot be combined with files
 ```
 
-| Field    | Required | Description |
-|----------|----------|-------------|
-| `server` | yes      | Hostname as defined in `~/.ssh/config` |
-| `name`   | no       | Job label used in the archive filename; defaults to `server` |
-| `target` | yes      | Local directory for the resulting archive |
-| `files`  | one source required | Paths to include; prefix with `!` to exclude |
+| Field     | Required | Description |
+|-----------|----------|-------------|
+| `server`  | yes      | Hostname as defined in `~/.ssh/config` |
+| `name`    | no       | Job label used in the archive filename; defaults to `server` |
+| `target`  | yes      | Local directory for the resulting archive |
+| `files`   | one source required | Paths to include; prefix with `!` to exclude |
 | `command` | one source required | Command whose standard output is backed up; cannot be combined with `files` |
-| `pre`    | no       | Commands run on the remote host before the backup |
-| `post`   | no       | Commands run on the remote host after the backup |
+| `compression` | no | `none`, `zstd`, `gzip`, `xz`, `lz4`, `bzip2` or `zip`; defaults to `zstd` |
+| `compression-level` | no | Native level for the selected algorithm; defaults to 3 (zstd), 6 (gzip/xz/zip), 1 (lz4) or 9 (bzip2) |
+| `pre`     | no       | Commands run on the remote host before the backup |
+| `post`    | no       | Commands run on the remote host after the backup |
 
 ## Usage
 
@@ -99,11 +103,11 @@ getup web-files web-mysql
 Tasks are still run in the order they appear in the config. Unknown names are ignored.
 
 ### Output Format
-File archives are saved using the format `{name}-{timestamp}.tar.zst`. Command output is saved as `{name}-{timestamp}.zstd`.
+File archives are saved using the format `{name}-{timestamp}.tar.{extension}`. Command output is saved as `{name}-{timestamp}.{extension}`. Uncompressed file tasks use `.tar`; uncompressed command tasks have no extension.
 
 If `name` is omitted, `server` is used instead. With a password set, `.age` is appended to either extension. Backups are written with an additional `.partial` suffix and atomically renamed when complete.
 
 ## Requirements
 
 - **Local**: `getup` binary.
-- **Remote**: `bash` and `zstd` must be available in the shell path. File-based tasks also require `tar`.
+- **Remote**: `bash` and the configured compression command must be available in the shell path. File-based tasks also require `tar`.

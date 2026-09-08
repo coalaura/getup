@@ -114,10 +114,10 @@ func (t *Task) Run(config *Config) error {
 }
 
 func (t *Task) archiveExtension(encrypted bool) string {
-	extension := ".tar.zst"
+	extension := ".tar" + t.compressor.Extension
 
 	if t.Command != "" {
-		extension = ".zst"
+		extension = t.compressor.Extension
 	}
 
 	if encrypted {
@@ -136,7 +136,11 @@ func (t *Task) backupCommand() string {
 		source = fmt.Sprintf("tar -C / -cf - %s %s", t.exclude, t.include)
 	}
 
-	script := fmt.Sprintf("set -o pipefail; %s | zstd -T0 -3 -q", source)
+	script := "set -o pipefail; " + source
+
+	if t.compressorCommand != "" {
+		script += " | " + t.compressorCommand
+	}
 
 	return "bash -lc " + shellQuote(script)
 }

@@ -16,17 +16,21 @@ type Config struct {
 }
 
 type Task struct {
-	Server  string   `yaml:"server"`
-	Name    string   `yaml:"name"`
-	Target  string   `yaml:"target"`
-	Files   []string `yaml:"files"`
-	Command string   `yaml:"command"`
-	Pre     []string `yaml:"pre"`
-	Post    []string `yaml:"post"`
+	Server           string   `yaml:"server"`
+	Name             string   `yaml:"name"`
+	Target           string   `yaml:"target"`
+	Files            []string `yaml:"files"`
+	Command          string   `yaml:"command"`
+	Pre              []string `yaml:"pre"`
+	Post             []string `yaml:"post"`
+	Compression      string   `yaml:"compression"`
+	CompressionLevel *int     `yaml:"compression-level"`
 
-	client  *ssh.Client
-	exclude string
-	include string
+	client            *ssh.Client
+	compressor        CompressionAlgorithm
+	compressorCommand string
+	exclude           string
+	include           string
 }
 
 func LoadConfig(home string) (*Config, error) {
@@ -73,6 +77,24 @@ func (t *Task) Parse() error {
 	if t.Target == "" {
 		return errors.New("missing target directory")
 	}
+
+	t.Compression = strings.ToLower(strings.TrimSpace(t.Compression))
+	if t.Compression == "" {
+		t.Compression = "zstd"
+	}
+
+	compressor, ok := compressionAlgorithms[t.Compression]
+	if !ok {
+		return errors.New("unknown compression algorithm")
+	}
+
+	compressorCommand, err := compressor.command(t.CompressionLevel)
+	if err != nil {
+		return err
+	}
+
+	t.compressor = compressor
+	t.compressorCommand = compressorCommand
 
 	t.Command = strings.TrimSpace(t.Command)
 
