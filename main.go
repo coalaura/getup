@@ -52,7 +52,7 @@ func main() {
 func handle(home string, task *Task, config scfg.Config, hosts scfg.KnownHosts, cfg *Config, filters map[string]bool) error {
 	base := task.ArchiveBase()
 
-	if len(filters) > 0 && !filters[strings.ToLower(base)] {
+	if !shouldRun(task, filters) {
 		return nil
 	}
 
@@ -93,4 +93,12 @@ func handle(home string, task *Task, config scfg.Config, hosts scfg.KnownHosts, 
 	}
 
 	return nil
+}
+
+func shouldRun(task *Task, filters map[string]bool) bool {
+	if len(filters) == 0 {
+		return !task.Disabled
+	}
+
+	return filters[strings.ToLower(task.ArchiveBase())]
 }

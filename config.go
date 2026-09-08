@@ -18,6 +18,7 @@ type Config struct {
 type Task struct {
 	Server           string   `yaml:"server"`
 	Name             string   `yaml:"name"`
+	Disabled         bool     `yaml:"disabled"`
 	Target           string   `yaml:"target"`
 	Files            []string `yaml:"files"`
 	Command          string   `yaml:"command"`

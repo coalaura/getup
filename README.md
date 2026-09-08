@@ -9,6 +9,7 @@ A zero-friction tool for streaming compressed remote backups that leverages your
 - **Files or Commands**: Back up selected files as a tar archive or the output of any remote command.
 - **Atomic Writes**: Streams into a `.partial` file and only exposes the completed backup after an atomic rename.
 - **Multiple Tasks per Host**: Define several backup jobs against the same SSH host, each with its own `name`, source and pre/post scripts.
+- **Optional Tasks**: Disable jobs from automatic runs while keeping them available for explicit invocation.
 - **Exclusion Support**: Easily exclude specific directories or files using the `!` prefix.
 - **Real-time Stats**: Shows write speed and total progress during the transfer.
 - **Optional Encryption**: Encrypt your backups with a password using [age](https://github.com/FiloSottile/age).
@@ -59,6 +60,7 @@ tasks:
 
   - server: web-server            # Same host, different job
     name: web-mysql
+    disabled: true                # Skip unless explicitly requested by name
     target: /local/backups
     pre:
       - "systemctl stop mysql"
@@ -73,17 +75,18 @@ tasks:
     command: "mysqldump --all-databases" # Compressed command output; cannot be combined with files
 ```
 
-| Field     | Required | Description |
-|-----------|----------|-------------|
-| `server`  | yes      | Hostname as defined in `~/.ssh/config` |
-| `name`    | no       | Job label used in the archive filename; defaults to `server` |
-| `target`  | yes      | Local directory for the resulting archive |
-| `files`   | one source required | Paths to include; prefix with `!` to exclude |
-| `command` | one source required | Command whose standard output is backed up; cannot be combined with `files` |
-| `compression` | no | `none`, `zstd`, `gzip`, `xz`, `lz4`, `bzip2` or `zip`; defaults to `zstd` |
-| `compression-level` | no | Native level for the selected algorithm; defaults to 3 (zstd), 6 (gzip/xz/zip), 1 (lz4) or 9 (bzip2) |
-| `pre`     | no       | Commands run on the remote host before the backup |
-| `post`    | no       | Commands run on the remote host after the backup |
+| Field               | Required | Description |
+|---------------------|----------|-------------|
+| `server`            | yes      | Hostname as defined in `~/.ssh/config` |
+| `target`            | yes      | Local directory for the resulting archive |
+| `name`              | no       | Job label used in the archive filename; defaults to `server` |
+| `disabled`          | no       | Skip the task when running without names; defaults to `false` |
+| `files`             | yes      | Paths to include; prefix with `!` to exclude; if empty `command` is required |
+| `command`           | yes      | Command whose standard output is backed up; cannot be combined with `files`; if empty `files` is required |
+| `compression`       | no       | `none`, `zstd`, `gzip`, `xz`, `lz4`, `bzip2` or `zip`; defaults to `zstd` |
+| `compression-level` | no       | Native level for the selected algorithm; defaults to 3 (zstd), 6 (gzip/xz/zip), 1 (lz4) or 9 (bzip2) |
+| `pre`               | no       | Commands run on the remote host before the backup |
+| `post`              | no       | Commands run on the remote host after the backup |
 
 ## Usage
 
@@ -100,7 +103,7 @@ getup web-files
 getup web-files web-mysql
 ```
 
-Tasks are still run in the order they appear in the config. Unknown names are ignored.
+Tasks are still run in the order they appear in the config. Unknown names are ignored. Tasks with `disabled: true` are skipped when `getup` is run without names, but run normally when explicitly requested.
 
 ### Output Format
 File archives are saved using the format `{name}-{timestamp}.tar.{extension}`. Command output is saved as `{name}-{timestamp}.{extension}`. Uncompressed file tasks use `.tar`; uncompressed command tasks have no extension.
