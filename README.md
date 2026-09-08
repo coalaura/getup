@@ -6,7 +6,9 @@ A zero-friction tool for streaming compressed remote backups that leverages your
 
 - **Streaming Compression**: Uses `tar` and `zstd` on the remote server to minimize bandwidth.
 - **SSH Native**: Leverages your existing `~/.ssh/config` and `~/.ssh/known_hosts`.
-- **Multiple Tasks per Host**: Define several backup jobs against the same SSH host, each with its own `name`, files and pre/post scripts.
+- **Files or Commands**: Back up selected files as a tar archive or the output of any remote command.
+- **Atomic Writes**: Streams into a `.partial` file and only exposes the completed backup after an atomic rename.
+- **Multiple Tasks per Host**: Define several backup jobs against the same SSH host, each with its own `name`, source and pre/post scripts.
 - **Exclusion Support**: Easily exclude specific directories or files using the `!` prefix.
 - **Real-time Stats**: Shows write speed and total progress during the transfer.
 - **Optional Encryption**: Encrypt your backups with a password using [age](https://github.com/FiloSottile/age).
@@ -62,6 +64,11 @@ tasks:
       - "systemctl start mysql"
     files:
       - /var/lib/mysql
+
+  - server: web-server
+    name: web-mysql-dump
+    target: /local/backups
+    command: "mysqldump --all-databases" # Compressed command output; cannot be combined with files
 ```
 
 | Field    | Required | Description |
@@ -69,7 +76,8 @@ tasks:
 | `server` | yes      | Hostname as defined in `~/.ssh/config` |
 | `name`   | no       | Job label used in the archive filename; defaults to `server` |
 | `target` | yes      | Local directory for the resulting archive |
-| `files`  | yes      | Paths to include; prefix with `!` to exclude |
+| `files`  | one source required | Paths to include; prefix with `!` to exclude |
+| `command` | one source required | Command whose standard output is backed up; cannot be combined with `files` |
 | `pre`    | no       | Commands run on the remote host before the backup |
 | `post`   | no       | Commands run on the remote host after the backup |
 
@@ -91,11 +99,11 @@ getup web-files web-mysql
 Tasks are still run in the order they appear in the config. Unknown names are ignored.
 
 ### Output Format
-Archives are saved using the format: `{name}-{timestamp}.tar.zst`
+File archives are saved using the format `{name}-{timestamp}.tar.zst`. Command output is saved as `{name}-{timestamp}.zstd`.
 
-If `name` is omitted, `server` is used instead. With a password set, the extension becomes `.tar.zst.age`.
+If `name` is omitted, `server` is used instead. With a password set, `.age` is appended to either extension. Backups are written with an additional `.partial` suffix and atomically renamed when complete.
 
 ## Requirements
 
 - **Local**: `getup` binary.
-- **Remote**: `bash`, `tar`, and `zstd` must be available in the shell path.
+- **Remote**: `bash` and `zstd` must be available in the shell path. File-based tasks also require `tar`.

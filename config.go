@@ -16,12 +16,13 @@ type Config struct {
 }
 
 type Task struct {
-	Server string   `yaml:"server"`
-	Name   string   `yaml:"name"`
-	Target string   `yaml:"target"`
-	Files  []string `yaml:"files"`
-	Pre    []string `yaml:"pre"`
-	Post   []string `yaml:"post"`
+	Server  string   `yaml:"server"`
+	Name    string   `yaml:"name"`
+	Target  string   `yaml:"target"`
+	Files   []string `yaml:"files"`
+	Command string   `yaml:"command"`
+	Pre     []string `yaml:"pre"`
+	Post    []string `yaml:"post"`
 
 	client  *ssh.Client
 	exclude string
@@ -73,8 +74,18 @@ func (t *Task) Parse() error {
 		return errors.New("missing target directory")
 	}
 
-	if len(t.Files) == 0 {
-		return errors.New("missing files")
+	t.Command = strings.TrimSpace(t.Command)
+
+	if len(t.Files) == 0 && t.Command == "" {
+		return errors.New("missing files or command")
+	}
+
+	if len(t.Files) > 0 && t.Command != "" {
+		return errors.New("files and command are mutually exclusive")
+	}
+
+	if t.Command != "" {
+		return nil
 	}
 
 	var (

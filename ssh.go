@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"filippo.io/age"
@@ -88,26 +89,10 @@ func (t *Task) Run(config *Config) error {
 	}
 
 	date := time.Now().Format("2006_01_02-15_04")
-
-	ext := ".tar.zst"
-
-	if config.Password != "" {
-		ext += ".age"
-	}
-
-	path := filepath.Join(t.Target, fmt.Sprintf("%s-%s%s", t.ArchiveBase(), date, ext))
-
-	out, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
-
-	defer out.Close()
+	path := filepath.Join(t.Target, fmt.Sprintf("%s-%s%s", t.ArchiveBase(), date, t.archiveExtension(config.Password != "")))
 
 	session, err := t.client.NewSession()
 	if err != nil {
-		defer os.Remove(path)
-
 		return err
 	}
 
@@ -115,72 +100,45 @@ func (t *Task) Run(config *Config) error {
 
 	stdout, err := session.StdoutPipe()
 	if err != nil {
-		defer os.Remove(path)
-
 		return err
 	}
 
 	session.Stderr = os.Stderr
 
-	cmd := fmt.Sprintf("bash -lc 'tar -C / -cf - %s %s | zstd -T0 -3 -q'", t.exclude, t.include)
-
-	err = session.Start(cmd)
+	err = session.Start(t.backupCommand())
 	if err != nil {
-		defer os.Remove(path)
-
 		return err
 	}
 
-	wr := NewCounter(out)
+	return writeBackupFile(path, config.Password, stdout, session.Wait)
+}
 
-	stop := wr.Start()
-	defer stop()
+func (t *Task) archiveExtension(encrypted bool) string {
+	extension := ".tar.zst"
 
-	var (
-		writer io.Writer = wr
-		closer io.Closer
-	)
-
-	if config.Password != "" {
-		recipient, err := age.NewScryptRecipient(config.Password)
-		if err != nil {
-			defer os.Remove(path)
-
-			return err
-		}
-
-		recipient.SetWorkFactor(20)
-
-		aw, err := age.Encrypt(writer, recipient)
-		if err != nil {
-			defer os.Remove(path)
-
-			return err
-		}
-
-		writer = aw
-		closer = aw
+	if t.Command != "" {
+		extension = ".zst"
 	}
 
-	_, err = io.Copy(writer, stdout)
-	if err != nil {
-		if closer != nil {
-			closer.Close()
-		}
-
-		defer os.Remove(path)
-
-		return err
+	if encrypted {
+		extension += ".age"
 	}
 
-	if closer != nil {
-		err = closer.Close()
-		if err != nil {
-			return err
-		}
+	return extension
+}
+
+func (t *Task) backupCommand() string {
+	var source string
+
+	if t.Command != "" {
+		source = "(" + t.Command + ")"
+	} else {
+		source = fmt.Sprintf("tar -C / -cf - %s %s", t.exclude, t.include)
 	}
 
-	return session.Wait()
+	script := fmt.Sprintf("set -o pipefail; %s | zstd -T0 -3 -q", source)
+
+	return "bash -lc " + shellQuote(script)
 }
 
 func (t *Task) runCommandsOnRemote(cmds []string) error {
@@ -203,4 +161,90 @@ func (t *Task) runCommandsOnRemote(cmds []string) error {
 	}
 
 	return nil
+}
+
+func writeBackupFile(path string, password string, source io.Reader, wait func() error) error {
+	partialPath := path + ".partial"
+
+	out, err := os.OpenFile(partialPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+
+	var committed bool
+
+	defer func() {
+		if committed {
+			return
+		}
+
+		out.Close()
+		os.Remove(partialPath)
+	}()
+
+	wr := NewCounter(out)
+
+	stop := wr.Start()
+	defer stop()
+
+	var (
+		writer io.Writer = wr
+		closer io.Closer
+	)
+
+	if password != "" {
+		recipient, err := age.NewScryptRecipient(password)
+		if err != nil {
+			return err
+		}
+
+		recipient.SetWorkFactor(20)
+
+		aw, err := age.Encrypt(writer, recipient)
+		if err != nil {
+			return err
+		}
+
+		writer = aw
+		closer = aw
+	}
+
+	_, err = io.Copy(writer, source)
+	if err != nil {
+		if closer != nil {
+			closer.Close()
+		}
+
+		return err
+	}
+
+	if closer != nil {
+		err = closer.Close()
+		if err != nil {
+			return err
+		}
+	}
+
+	err = wait()
+	if err != nil {
+		return err
+	}
+
+	err = out.Close()
+	if err != nil {
+		return err
+	}
+
+	err = os.Rename(partialPath, path)
+	if err != nil {
+		return err
+	}
+
+	committed = true
+
+	return nil
+}
+
+func shellQuote(value string) string {
+	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
 }

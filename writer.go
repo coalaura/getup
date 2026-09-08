@@ -9,6 +9,12 @@ import (
 	"time"
 )
 
+const (
+	KiB = 1024
+	MiB = 1024 * KiB
+	GiB = 1024 * MiB
+)
+
 type counter struct {
 	wr io.Writer
 	n  atomic.Uint64
@@ -74,12 +80,6 @@ func (c *counter) Start() func() {
 }
 
 func fmtBytes(n uint64) string {
-	const (
-		KiB = 1024
-		MiB = 1024 * KiB
-		GiB = 1024 * MiB
-	)
-
 	switch {
 	case n >= GiB:
 		return fmt.Sprintf("%.2f GiB", float64(n)/GiB)
