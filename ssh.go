@@ -289,6 +289,10 @@ func writeBackupFile(path string, password string, out *os.File, source io.Reade
 
 	committed = true
 
+	bytes, duration := wr.Stats()
+
+	fmt.Printf("Backup completed in %s (~%s)\n", fmtDuration(duration), humanSpeed(bytes, duration))
+
 	return nil
 }
 

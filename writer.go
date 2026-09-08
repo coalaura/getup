@@ -16,13 +16,15 @@ const (
 )
 
 type counter struct {
-	wr io.Writer
-	n  atomic.Uint64
+	wr    io.Writer
+	n     atomic.Uint64
+	start time.Time
 }
 
 func NewCounter(wr io.Writer) *counter {
 	return &counter{
-		wr: wr,
+		wr:    wr,
+		start: time.Now(),
 	}
 }
 
@@ -32,6 +34,10 @@ func (c *counter) Write(p []byte) (int, error) {
 	c.n.Add(uint64(n))
 
 	return n, err
+}
+
+func (c *counter) Stats() (uint64, time.Duration) {
+	return c.n.Load(), time.Since(c.start)
 }
 
 func (c *counter) Start() func() {
@@ -79,6 +85,25 @@ func (c *counter) Start() func() {
 	}
 }
 
+func humanSpeed(bytes uint64, duration time.Duration) string {
+	if duration == 0 {
+		return "∞"
+	}
+
+	speed := float64(bytes) / duration.Seconds()
+
+	switch {
+	case speed >= GiB:
+		return fmt.Sprintf("%.2f GiB/s", speed/GiB)
+	case speed >= MiB:
+		return fmt.Sprintf("%.2f MiB/s", speed/MiB)
+	case speed >= KiB:
+		return fmt.Sprintf("%.2f KiB/s", speed/KiB)
+	default:
+		return fmt.Sprintf("%d B/s", int64(speed))
+	}
+}
+
 func fmtBytes(n uint64) string {
 	switch {
 	case n >= GiB:
@@ -90,4 +115,17 @@ func fmtBytes(n uint64) string {
 	default:
 		return fmt.Sprintf("%d B", n)
 	}
+}
+
+func fmtDuration(d time.Duration) string {
+	switch {
+	case d >= time.Second:
+		return d.Round(100 * time.Millisecond).String()
+	case d >= time.Millisecond:
+		return d.Round(100 * time.Microsecond).String()
+	case d >= time.Microsecond:
+		return d.Round(100 * time.Nanosecond).String()
+	}
+
+	return d.String()
 }
