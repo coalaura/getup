@@ -88,6 +88,8 @@ tasks:
 | `pre`               | no       | Commands run on the remote host before the backup |
 | `post`              | no       | Commands run on the remote host after the backup |
 
+Each task uses one SSH session. Output from `pre` and `post` commands is sent to stderr so stdout remains an archive-only stream. Once `pre` begins, `post` is attempted as cleanup even if a pre command or the backup pipeline fails. Missing remote prerequisites fail before either lifecycle stage runs.
+
 ## Usage
 
 Run with no arguments to process every task in your config:

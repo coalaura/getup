@@ -65,15 +65,6 @@ func handle(home string, task *Task, config scfg.Config, hosts scfg.KnownHosts, 
 
 	defer task.Close()
 
-	if len(task.Pre) > 0 {
-		log.Printf("Running pre-backup scripts for %s...\n", base)
-
-		err = task.RunPreScripts()
-		if err != nil {
-			return err
-		}
-	}
-
 	log.Printf("Backing up %s...\n", base)
 
 	err = task.Run(cfg)
@@ -82,15 +73,6 @@ func handle(home string, task *Task, config scfg.Config, hosts scfg.KnownHosts, 
 	}
 
 	log.Printf("Completed backing up %s\n", base)
-
-	if len(task.Post) > 0 {
-		log.Printf("Running post-backup scripts for %s...\n", base)
-
-		err = task.RunPostScripts()
-		if err != nil {
-			return err
-		}
-	}
 
 	return nil
 }

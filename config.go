@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -30,8 +31,8 @@ type Task struct {
 	client            *ssh.Client
 	compressor        CompressionAlgorithm
 	compressorCommand string
-	exclude           string
-	include           string
+	excludes          []string
+	includes          []string
 }
 
 func LoadConfig(home string) (*Config, error) {
@@ -79,6 +80,11 @@ func (t *Task) Parse() error {
 		return errors.New("missing target directory")
 	}
 
+	err := validateArchiveBase(t.ArchiveBase())
+	if err != nil {
+		return err
+	}
+
 	t.Compression = strings.ToLower(strings.TrimSpace(t.Compression))
 	if t.Compression == "" {
 		t.Compression = "zstd"
@@ -111,50 +117,47 @@ func (t *Task) Parse() error {
 		return nil
 	}
 
-	var (
-		include strings.Builder
-		exclude strings.Builder
-	)
+	t.includes = t.includes[:0]
+	t.excludes = t.excludes[:0]
 
 	for _, file := range t.Files {
-		if len(file) == 0 {
-			continue
+		if file == "" {
+			return errors.New("invalid empty file path")
 		}
 
-		var excl bool
+		excluded := false
 
 		if file[0] == '!' {
-			excl = true
-
+			excluded = true
 			file = file[1:]
+		}
+
+		if file == "" {
+			return errors.New("invalid empty exclusion path")
+		}
+
+		if strings.IndexByte(file, 0) >= 0 {
+			return errors.New("file path contains NUL")
 		}
 
 		if file[0] == '/' {
 			file = file[1:]
 		}
 
-		if excl {
-			if exclude.Len() > 0 {
-				exclude.WriteByte(' ')
-			}
+		if file == "" {
+			return errors.New("invalid empty file path")
+		}
 
-			exclude.WriteString("--exclude ")
-			exclude.WriteString(file)
+		if excluded {
+			t.excludes = append(t.excludes, file)
 		} else {
-			if include.Len() > 0 {
-				include.WriteByte(' ')
-			}
-
-			include.WriteString(file)
+			t.includes = append(t.includes, file)
 		}
 	}
 
-	if include.Len() == 0 {
+	if len(t.includes) == 0 {
 		return errors.New("invalid files")
 	}
-
-	t.include = include.String()
-	t.exclude = exclude.String()
 
 	return nil
 }
@@ -165,4 +168,28 @@ func (t *Task) ArchiveBase() string {
 	}
 
 	return t.Server
+}
+
+func validateArchiveBase(base string) error {
+	if base == "" || base == "." || base == ".." {
+		return errors.New("archive name must be a non-empty filename component")
+	}
+
+	if strings.ContainsAny(base, "/\\<>:\"|?*") || filepath.IsAbs(base) || hasControlCharacter(base) {
+		return fmt.Errorf("archive name %q must be a single filename component", base)
+	}
+
+	return nil
+}
+
+func hasControlCharacter(value string) bool {
+	for index := range len(value) {
+		character := value[index]
+
+		if character < ' ' || character == 0x7f {
+			return true
+		}
+	}
+
+	return false
 }

@@ -75,14 +75,6 @@ func (t *Task) Close() error {
 	return t.client.Close()
 }
 
-func (t *Task) RunPreScripts() error {
-	return t.runCommandsOnRemote(t.Pre)
-}
-
-func (t *Task) RunPostScripts() error {
-	return t.runCommandsOnRemote(t.Post)
-}
-
 func (t *Task) Run(config *Config) error {
 	if t.client == nil {
 		return errors.New("not connected")
@@ -90,6 +82,23 @@ func (t *Task) Run(config *Config) error {
 
 	date := time.Now().Format("2006_01_02-15_04")
 	path := filepath.Join(t.Target, fmt.Sprintf("%s-%s%s", t.ArchiveBase(), date, t.archiveExtension(config.Password != "")))
+	partial := path + ".partial"
+
+	out, err := os.OpenFile(partial, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
+	if err != nil {
+		return err
+	}
+
+	writeStarted := false
+
+	defer func() {
+		if writeStarted {
+			return
+		}
+
+		out.Close()
+		os.Remove(partial)
+	}()
 
 	session, err := t.client.NewSession()
 	if err != nil {
@@ -104,13 +113,16 @@ func (t *Task) Run(config *Config) error {
 	}
 
 	session.Stderr = os.Stderr
+	session.Stdin = strings.NewReader(t.backupCommand())
 
-	err = session.Start(t.backupCommand())
+	err = session.Start("bash -l -s 3>&1 1>&2")
 	if err != nil {
 		return err
 	}
 
-	return writeBackupFile(path, config.Password, stdout, session.Wait)
+	writeStarted = true
+
+	return writeBackupFile(path, config.Password, out, stdout, session.Wait)
 }
 
 func (t *Task) archiveExtension(encrypted bool) string {
@@ -128,52 +140,68 @@ func (t *Task) archiveExtension(encrypted bool) string {
 }
 
 func (t *Task) backupCommand() string {
-	var source string
+	var script strings.Builder
 
-	if t.Command != "" {
-		source = "(" + t.Command + ")"
-	} else {
-		source = fmt.Sprintf("tar -C / -cf - %s %s", t.exclude, t.include)
+	script.WriteString("set -o pipefail\n")
+	script.WriteByte('\n')
+
+	writeRemoteCommands(&script, "run_pre", t.Pre, false)
+	writeRemoteCommands(&script, "run_post", t.Post, true)
+
+	script.WriteString("cleanup_done=0\n")
+	script.WriteString("cleanup() {\n")
+	script.WriteString("\tlocal primary_status=$?\n")
+	script.WriteString("\tlocal cleanup_status\n\n")
+	script.WriteString("\ttrap - EXIT\n")
+	script.WriteString("\ttrap '' HUP INT TERM\n\n")
+	script.WriteString("\tif (( cleanup_done != 0 )); then\n")
+	script.WriteString("\t\texit \"$primary_status\"\n")
+	script.WriteString("\tfi\n\n")
+	script.WriteString("\tcleanup_done=1\n")
+	script.WriteString("\trun_post\n")
+	script.WriteString("\tcleanup_status=$?\n\n")
+	script.WriteString("\tif (( cleanup_status != 0 )); then\n")
+	script.WriteString("\t\tif (( primary_status != 0 )); then\n")
+	script.WriteString("\t\t\tprintf 'getup: cleanup failed with status %d; preserving primary status %d\\n' \"$cleanup_status\" \"$primary_status\"\n")
+	script.WriteString("\t\telse\n")
+	script.WriteString("\t\t\tprimary_status=$cleanup_status\n")
+	script.WriteString("\t\tfi\n")
+	script.WriteString("\tfi\n\n")
+	script.WriteString("\texit \"$primary_status\"\n")
+	script.WriteString("}\n\n")
+
+	if t.Command == "" {
+		writePrerequisiteCheck(&script, "tar")
 	}
 
-	script := "set -o pipefail; " + source
-
-	if t.compressorCommand != "" {
-		script += " | " + t.compressorCommand
+	if t.compressor.Executable != "" {
+		writePrerequisiteCheck(&script, t.compressor.Executable)
 	}
 
-	return "bash -lc " + shellQuote(script)
+	script.WriteString("trap cleanup EXIT\n")
+	script.WriteString("trap 'exit 129' HUP\n")
+	script.WriteString("trap 'exit 130' INT\n")
+	script.WriteString("trap 'exit 143' TERM\n\n")
+	script.WriteString("run_pre\n")
+	script.WriteString("primary_status=$?\n")
+	script.WriteString("if (( primary_status != 0 )); then\n")
+	script.WriteString("\tprintf 'getup: pre command failed with status %d\\n' \"$primary_status\"\n")
+	script.WriteString("\texit \"$primary_status\"\n")
+	script.WriteString("fi\n\n")
+
+	writeBackupPipeline(&script, t)
+
+	script.WriteString("primary_status=$?\n")
+	script.WriteString("if (( primary_status != 0 )); then\n")
+	script.WriteString("\tprintf 'getup: backup pipeline failed with status %d\\n' \"$primary_status\"\n")
+	script.WriteString("fi\n")
+	script.WriteString("exit \"$primary_status\"\n")
+
+	return script.String()
 }
 
-func (t *Task) runCommandsOnRemote(cmds []string) error {
-	for _, cmd := range cmds {
-		session, err := t.client.NewSession()
-		if err != nil {
-			return err
-		}
-
-		session.Stdout = os.Stdout
-		session.Stderr = os.Stderr
-
-		err = session.Run(cmd)
-
-		session.Close()
-
-		if err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-func writeBackupFile(path string, password string, source io.Reader, wait func() error) error {
+func writeBackupFile(path string, password string, out *os.File, source io.Reader, wait func() error) error {
 	partialPath := path + ".partial"
-
-	out, err := os.OpenFile(partialPath, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0644)
-	if err != nil {
-		return err
-	}
 
 	var committed bool
 
@@ -192,49 +220,64 @@ func writeBackupFile(path string, password string, source io.Reader, wait func()
 	defer stop()
 
 	var (
-		writer io.Writer = wr
-		closer io.Closer
+		writer   io.Writer = wr
+		closer   io.Closer
+		setupErr error
 	)
 
 	if password != "" {
 		recipient, err := age.NewScryptRecipient(password)
 		if err != nil {
-			return err
+			setupErr = err
+		} else {
+			recipient.SetWorkFactor(20)
+
+			aw, err := age.Encrypt(writer, recipient)
+			if err != nil {
+				setupErr = err
+			} else {
+				writer = aw
+				closer = aw
+			}
 		}
-
-		recipient.SetWorkFactor(20)
-
-		aw, err := age.Encrypt(writer, recipient)
-		if err != nil {
-			return err
-		}
-
-		writer = aw
-		closer = aw
 	}
 
-	_, err = io.Copy(writer, source)
-	if err != nil {
-		if closer != nil {
-			closer.Close()
-		}
+	if setupErr != nil {
+		io.Copy(io.Discard, source)
 
-		return err
+		wait()
+
+		return setupErr
 	}
+
+	_, copyErr := io.Copy(writer, source)
+
+	if copyErr != nil {
+		io.Copy(io.Discard, source)
+
+	}
+
+	var closeErr error
 
 	if closer != nil {
-		err = closer.Close()
-		if err != nil {
-			return err
-		}
+		closeErr = closer.Close()
 	}
 
-	err = wait()
-	if err != nil {
-		return err
+	waitErr := wait()
+
+	if copyErr != nil {
+		return copyErr
 	}
 
-	err = out.Close()
+	if closeErr != nil {
+		return closeErr
+	}
+
+	if waitErr != nil {
+		return waitErr
+	}
+
+	err := out.Close()
 	if err != nil {
 		return err
 	}
@@ -251,4 +294,86 @@ func writeBackupFile(path string, password string, source io.Reader, wait func()
 
 func shellQuote(value string) string {
 	return "'" + strings.ReplaceAll(value, "'", "'\\''") + "'"
+}
+
+func writeRemoteCommands(script *strings.Builder, name string, commands []string, continueOnError bool) {
+	script.WriteString(name)
+	script.WriteString("() {\n")
+	script.WriteString("\tlocal command_status\n")
+
+	if continueOnError {
+		script.WriteString("\tlocal result=0\n")
+	}
+
+	script.WriteByte('\n')
+
+	for _, command := range commands {
+		script.WriteString("\t(\n")
+		script.WriteString(command)
+		script.WriteString("\n\t) 3>&-\n")
+
+		if continueOnError {
+			script.WriteString("\tcommand_status=$?\n")
+			script.WriteString("\tif (( command_status != 0 )); then\n")
+			script.WriteString("\t\tprintf 'getup: post command failed with status %d\\n' \"$command_status\"\n")
+			script.WriteString("\t\tif (( result == 0 )); then\n")
+			script.WriteString("\t\t\tresult=$command_status\n")
+			script.WriteString("\t\tfi\n")
+			script.WriteString("\tfi\n\n")
+		} else {
+			script.WriteString("\tcommand_status=$?\n")
+			script.WriteString("\tif (( command_status != 0 )); then\n")
+			script.WriteString("\t\treturn \"$command_status\"\n")
+			script.WriteString("\tfi\n\n")
+		}
+	}
+
+	if continueOnError {
+		script.WriteString("\treturn \"$result\"\n")
+	} else {
+		script.WriteString("\treturn 0\n")
+	}
+
+	script.WriteString("}\n\n")
+}
+
+func writePrerequisiteCheck(script *strings.Builder, executable string) {
+	quotedExecutable := shellQuote(executable)
+
+	script.WriteString("if ! command -v -- ")
+	script.WriteString(quotedExecutable)
+	script.WriteString(" >/dev/null 2>&1; then\n")
+	script.WriteString("\tprintf 'getup: required remote executable not found: %s\\n' ")
+	script.WriteString(quotedExecutable)
+	script.WriteString("\n\texit 127\n")
+	script.WriteString("fi\n\n")
+}
+
+func writeBackupPipeline(script *strings.Builder, task *Task) {
+	if task.Command != "" {
+		script.WriteString("(\n")
+		script.WriteString(task.Command)
+		script.WriteString("\n)")
+	} else {
+		script.WriteString("tar -C / -cf -")
+
+		for _, exclude := range task.excludes {
+			script.WriteString(" --exclude=")
+			script.WriteString(shellQuote(exclude))
+		}
+
+		script.WriteString(" --")
+
+		for _, include := range task.includes {
+			script.WriteByte(' ')
+			script.WriteString(shellQuote(include))
+		}
+	}
+
+	if task.compressorCommand != "" {
+		script.WriteString(" | ")
+		script.WriteString(task.compressorCommand)
+	}
+
+	script.WriteString(" >&3\n")
 }

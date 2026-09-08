@@ -7,6 +7,7 @@ import (
 
 type CompressionAlgorithm struct {
 	Extension     string
+	Executable    string
 	CommandPrefix string
 	CommandSuffix string
 	DefaultLevel  int
@@ -20,6 +21,7 @@ var compressionAlgorithms = map[string]CompressionAlgorithm{
 	},
 	"zstd": {
 		Extension:     ".zst",
+		Executable:    "zstd",
 		CommandPrefix: "zstd -T0 -",
 		CommandSuffix: " -q",
 		DefaultLevel:  3,
@@ -28,6 +30,7 @@ var compressionAlgorithms = map[string]CompressionAlgorithm{
 	},
 	"gzip": {
 		Extension:     ".gz",
+		Executable:    "gzip",
 		CommandPrefix: "gzip -",
 		CommandSuffix: " -c",
 		DefaultLevel:  6,
@@ -36,6 +39,7 @@ var compressionAlgorithms = map[string]CompressionAlgorithm{
 	},
 	"xz": {
 		Extension:     ".xz",
+		Executable:    "xz",
 		CommandPrefix: "xz -",
 		CommandSuffix: " -c",
 		DefaultLevel:  6,
@@ -44,6 +48,7 @@ var compressionAlgorithms = map[string]CompressionAlgorithm{
 	},
 	"lz4": {
 		Extension:     ".lz4",
+		Executable:    "lz4",
 		CommandPrefix: "lz4 -",
 		CommandSuffix: " -q -c",
 		DefaultLevel:  1,
@@ -52,6 +57,7 @@ var compressionAlgorithms = map[string]CompressionAlgorithm{
 	},
 	"bzip2": {
 		Extension:     ".bz2",
+		Executable:    "bzip2",
 		CommandPrefix: "bzip2 -",
 		CommandSuffix: " -c",
 		DefaultLevel:  9,
@@ -60,6 +66,7 @@ var compressionAlgorithms = map[string]CompressionAlgorithm{
 	},
 	"zip": {
 		Extension:     ".zip",
+		Executable:    "zip",
 		CommandPrefix: "zip -q -",
 		CommandSuffix: " - -",
 		DefaultLevel:  6,
