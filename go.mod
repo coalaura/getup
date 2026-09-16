@@ -4,10 +4,10 @@ go 1.26.0
 
 require (
 	filippo.io/age v1.3.2
-	github.com/coalaura/plain v1.5.3
-	github.com/coalaura/scfg v0.2.1
+	github.com/coalaura/plain v1.6.3
+	github.com/coalaura/scfg v0.2.2
 	github.com/goccy/go-yaml v1.19.2
-	golang.org/x/crypto v0.56.0
+	golang.org/x/crypto v0.57.0
 )
 
 require (
