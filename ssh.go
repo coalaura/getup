@@ -252,7 +252,6 @@ func writeBackupFile(path string, password string, out *os.File, source io.Reade
 	}
 
 	_, copyErr := io.Copy(writer, source)
-
 	if copyErr != nil {
 		io.Copy(io.Discard, source)
 
@@ -315,7 +314,7 @@ func writeRemoteCommands(script *strings.Builder, name string, commands []string
 	for _, command := range commands {
 		script.WriteString("\t(\n")
 		script.WriteString(command)
-		script.WriteString("\n\t) 3>&-\n")
+		script.WriteString("\n\t) 3>&- </dev/null\n")
 
 		if continueOnError {
 			script.WriteString("\tcommand_status=$?\n")
