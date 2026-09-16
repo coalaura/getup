@@ -31,10 +31,11 @@ func (t *Task) Connect(home string, config scfg.Config, hosts scfg.KnownHosts) e
 	timeout := server.Timeout(10 * time.Second)
 
 	cfg := &ssh.ClientConfig{
-		User:            server.DefaultUser(),
-		Auth:            auth,
-		HostKeyCallback: hosts.HostKeyCallback(),
-		Timeout:         timeout,
+		User:              server.DefaultUser(),
+		Auth:              auth,
+		HostKeyCallback:   hosts.HostKeyCallback(),
+		HostKeyAlgorithms: hosts.HostKeyAlgorithms(addr),
+		Timeout:           timeout,
 		Config: ssh.Config{
 			Ciphers: []string{
 				"aes128-gcm@openssh.com",
