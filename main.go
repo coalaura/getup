@@ -67,6 +67,10 @@ func handle(home string, task *Task, config scfg.Config, hosts scfg.KnownHosts, 
 
 	log.Printf("Backing up %s...\n", base)
 
+	if task.IgnoreFailedRead {
+		log.Printf("Ignoring failed tar reads for %s...\n", base)
+	}
+
 	err = task.Run(cfg)
 	if err != nil {
 		return err
