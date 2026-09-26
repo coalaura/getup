@@ -96,7 +96,7 @@ Each task uses one SSH session. Output from `pre` and `post` commands is sent to
 
 By default, if a file or directory changes while `tar` reads it, `tar` reports `file changed as we read it` and exits with status 1. Getup runs the `post` commands and removes the `.partial` archive rather than publishing a potentially inconsistent backup. This commonly happens when archiving an active database's data directory, such as ClickHouse's `store` directory.
 
-To accept a best-effort archive for a `files` task despite these changes, set `ignore-failed-read: true` on that task. This uses GNU tar's `--ignore-failed-read`: tar still warns, but missing or unreadable files and files that change while reading do not make it fail. Other failures (such as compression or write errors) still fail the backup. This option can produce an incomplete or inconsistent archive, so use it only when that tradeoff is acceptable. The remote `tar` must support `--ignore-failed-read`.
+To accept a best-effort archive for a `files` task despite these changes, set `ignore-failed-read: true` on that task. This passes GNU tar's `--ignore-failed-read` and treats tar status 1 as success, including on versions that still return 1 for changed files with that flag. Tar warnings remain visible; tar statuses 2 and above, compression failures and write errors still fail the backup. Missing or unreadable files can be omitted, so the archive may be incomplete or inconsistent. Use this option only when that tradeoff is acceptable. The remote `tar` must support `--ignore-failed-read`.
 
 For file-based backups, stop writes for the duration of the archive, for example by stopping and restarting a systemd-managed ClickHouse server:
 

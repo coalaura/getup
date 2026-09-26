@@ -359,6 +359,10 @@ func writeBackupPipeline(script *strings.Builder, task *Task) {
 		script.WriteString(task.Command)
 		script.WriteString("\n)")
 	} else {
+		if task.IgnoreFailedRead {
+			script.WriteByte('(')
+		}
+
 		script.WriteString("tar -C / -cf -")
 
 		if task.IgnoreFailedRead {
@@ -375,6 +379,15 @@ func writeBackupPipeline(script *strings.Builder, task *Task) {
 		for _, include := range task.includes {
 			script.WriteByte(' ')
 			script.WriteString(shellQuote(include))
+		}
+
+		if task.IgnoreFailedRead {
+			// GNU tar versions may still exit 1 for changed files despite --ignore-failed-read.
+			script.WriteString("; tar_status=$?\n")
+			script.WriteString("if (( tar_status == 1 )); then\n")
+			script.WriteString("\texit 0\n")
+			script.WriteString("fi\n")
+			script.WriteString("exit \"$tar_status\")")
 		}
 	}
 
