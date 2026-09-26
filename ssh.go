@@ -361,6 +361,10 @@ func writeBackupPipeline(script *strings.Builder, task *Task) {
 	} else {
 		script.WriteString("tar -C / -cf -")
 
+		if task.IgnoreFailedRead {
+			script.WriteString(" --ignore-failed-read")
+		}
+
 		for _, exclude := range task.excludes {
 			script.WriteString(" --exclude=")
 			script.WriteString(shellQuote(exclude))

@@ -22,6 +22,7 @@ type Task struct {
 	Disabled         bool     `yaml:"disabled"`
 	Target           string   `yaml:"target"`
 	Files            []string `yaml:"files"`
+	IgnoreFailedRead bool     `yaml:"ignore-failed-read"`
 	Command          string   `yaml:"command"`
 	Pre              []string `yaml:"pre"`
 	Post             []string `yaml:"post"`
@@ -114,6 +115,10 @@ func (t *Task) Parse() error {
 	}
 
 	if t.Command != "" {
+		if t.IgnoreFailedRead {
+			return errors.New("ignore-failed-read requires files")
+		}
+
 		return nil
 	}
 

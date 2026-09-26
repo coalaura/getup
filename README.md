@@ -52,6 +52,7 @@ tasks:
     post:                         # Optional commands to run after backup
       - "docker unpause myapp"
       - "systemctl start nginx"
+    ignore-failed-read: false     # Optional; allow missing, unreadable or changing files in tar backups
     files:
       - /etc/nginx                # Include directory
       - /var/www
@@ -82,6 +83,7 @@ tasks:
 | `name`              | no       | Job label used in the archive filename; defaults to `server` |
 | `disabled`          | no       | Skip the task when running without names; defaults to `false` |
 | `files`             | yes      | Paths to include; prefix with `!` to exclude; if empty `command` is required |
+| `ignore-failed-read` | no       | For `files` tasks, allow tar to continue past missing, unreadable or changing files; defaults to `false` |
 | `command`           | yes      | Command whose standard output is backed up; cannot be combined with `files`; if empty `files` is required |
 | `compression`       | no       | `none`, `zstd`, `gzip`, `xz`, `lz4`, `bzip2` or `zip`; defaults to `zstd` |
 | `compression-level` | no       | Native level for the selected algorithm; defaults to 3 (zstd), 6 (gzip/xz/zip), 1 (lz4) or 9 (bzip2) |
@@ -89,6 +91,25 @@ tasks:
 | `post`              | no       | Commands run on the remote host after the backup |
 
 Each task uses one SSH session. Output from `pre` and `post` commands is sent to stderr so stdout remains an archive-only stream. Once `pre` begins, `post` is attempted as cleanup even if a pre command or the backup pipeline fails. Missing remote prerequisites fail before either lifecycle stage runs.
+
+### Backing up live data
+
+By default, if a file or directory changes while `tar` reads it, `tar` reports `file changed as we read it` and exits with status 1. Getup runs the `post` commands and removes the `.partial` archive rather than publishing a potentially inconsistent backup. This commonly happens when archiving an active database's data directory, such as ClickHouse's `store` directory.
+
+To accept a best-effort archive for a `files` task despite these changes, set `ignore-failed-read: true` on that task. This uses GNU tar's `--ignore-failed-read`: tar still warns, but missing or unreadable files and files that change while reading do not make it fail. Other failures (such as compression or write errors) still fail the backup. This option can produce an incomplete or inconsistent archive, so use it only when that tradeoff is acceptable. The remote `tar` must support `--ignore-failed-read`.
+
+For file-based backups, stop writes for the duration of the archive, for example by stopping and restarting a systemd-managed ClickHouse server:
+
+```yaml
+pre:
+  - "systemctl stop clickhouse-server"
+post:
+  - "systemctl start clickhouse-server"
+files:
+  - /var/lib/clickhouse
+```
+
+If stopping the database is not practical, use a database-native backup or filesystem snapshot instead of archiving the live data directory. Exclude that directory from any other file-based task using `!/path/to/data`. Suppressing tar's warning alone does not make a live database archive consistent.
 
 ## Usage
 
