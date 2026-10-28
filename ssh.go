@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"errors"
 	"fmt"
 	"io"
@@ -215,6 +216,16 @@ func writeBackupFile(path string, password string, out *os.File, source io.Reade
 		os.Remove(partialPath)
 	}()
 
+	// Wait for archive data before showing progress or writing an encryption header.
+	reader := bufio.NewReader(source)
+
+	_, err := reader.Peek(1)
+	if err != nil && !errors.Is(err, io.EOF) {
+		wait()
+
+		return err
+	}
+
 	wr := NewCounter(out)
 
 	stop := wr.Start()
@@ -244,16 +255,16 @@ func writeBackupFile(path string, password string, out *os.File, source io.Reade
 	}
 
 	if setupErr != nil {
-		io.Copy(io.Discard, source)
+		io.Copy(io.Discard, reader)
 
 		wait()
 
 		return setupErr
 	}
 
-	_, copyErr := io.Copy(writer, source)
+	_, copyErr := io.Copy(writer, reader)
 	if copyErr != nil {
-		io.Copy(io.Discard, source)
+		io.Copy(io.Discard, reader)
 
 	}
 
@@ -277,7 +288,7 @@ func writeBackupFile(path string, password string, out *os.File, source io.Reade
 		return waitErr
 	}
 
-	err := out.Close()
+	err = out.Close()
 	if err != nil {
 		return err
 	}

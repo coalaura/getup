@@ -92,6 +92,8 @@ tasks:
 
 Each task uses one SSH session. Output from `pre` and `post` commands is sent to stderr so stdout remains an archive-only stream. Once `pre` begins, `post` is attempted as cleanup even if a pre command or the backup pipeline fails. Missing remote prerequisites fail before either lifecycle stage runs.
 
+Pre commands run sequentially and the archive pipeline starts only after all of them exit successfully. Scripts that launch background work must wait for it before exiting. Transfer progress and local encryption start when archive data arrives; script output is consumed separately and its display can lag behind transfer progress.
+
 ### Backing up live data
 
 By default, if a file or directory changes while `tar` reads it, `tar` reports `file changed as we read it` and exits with status 1. Getup runs the `post` commands and removes the `.partial` archive rather than publishing a potentially inconsistent backup. This commonly happens when archiving an active database's data directory, such as ClickHouse's `store` directory.
