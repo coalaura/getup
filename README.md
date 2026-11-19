@@ -128,7 +128,16 @@ getup web-files
 getup web-files web-mysql
 ```
 
-Tasks are still run in the order they appear in the config. Unknown names are ignored. Tasks with `disabled: true` are skipped when `getup` is run without names, but run normally when explicitly requested.
+Use `*` to match zero or more characters in a task name. Quote patterns to prevent your shell from expanding them as local filenames:
+
+```bash
+getup 'example-*'
+getup '*-logs' web-files
+```
+
+For tasks named `example`, `example-logs` and `example-config`, `getup 'example-*'` runs only `example-logs` and `example-config`. Patterns are case-insensitive; only `*` has special meaning.
+
+Tasks are still run once each in the order they appear in the config, even if multiple arguments match. Unknown names and unmatched patterns are ignored. Tasks with `disabled: true` are skipped when `getup` is run without arguments, but run normally when selected by a name or pattern.
 
 ### Output Format
 File archives are saved using the format `{name}-{timestamp}.tar.{extension}`. Command output is saved as `{name}-{timestamp}.{extension}`. Uncompressed file tasks use `.tar`; uncompressed command tasks have no extension.
