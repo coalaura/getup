@@ -86,18 +86,39 @@ func shouldRun(task *Task, filters map[string]bool) bool {
 		return !task.Disabled
 	}
 
+	var (
+		hasIncludes bool
+		included    bool
+	)
+
 	name := strings.ToLower(task.ArchiveBase())
-	if filters[name] {
-		return true
-	}
 
 	for filter, enabled := range filters {
-		if enabled && matchesPattern(name, filter) {
-			return true
+		if !enabled {
+			continue
+		}
+
+		pattern, excluded := strings.CutPrefix(filter, "!")
+		if excluded {
+			if matchesPattern(name, pattern) {
+				return false
+			}
+
+			continue
+		}
+
+		hasIncludes = true
+
+		if !included && matchesPattern(name, pattern) {
+			included = true
 		}
 	}
 
-	return false
+	if hasIncludes {
+		return included
+	}
+
+	return !task.Disabled
 }
 
 func matchesPattern(name, pattern string) bool {

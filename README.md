@@ -115,7 +115,7 @@ If stopping the database is not practical, use a database-native backup or files
 
 ## Usage
 
-Run with no arguments to process every task in your config:
+Run with no arguments to process every enabled task in your config:
 
 ```bash
 getup
@@ -135,9 +135,19 @@ getup 'example-*'
 getup '*-logs' web-files
 ```
 
-For tasks named `example`, `example-logs` and `example-config`, `getup 'example-*'` runs only `example-logs` and `example-config`. Patterns are case-insensitive; only `*` has special meaning.
+For tasks named `example`, `example-logs` and `example-config`, `getup 'example-*'` runs only `example-logs` and `example-config`. Patterns are case-insensitive; `*` is the only wildcard.
 
-Tasks are still run once each in the order they appear in the config, even if multiple arguments match. Unknown names and unmatched patterns are ignored. Tasks with `disabled: true` are skipped when `getup` is run without arguments, but run normally when selected by a name or pattern.
+Prefix a name or pattern with `!` to exclude matching tasks. Exclusions always win, regardless of argument order. Use single quotes to prevent shell expansion of `!` and `*`:
+
+```bash
+getup 'example-*' '!example-l*'
+getup 'example-*' '!example-logs'
+getup '!*-logs'
+```
+
+The first command selects `example-config` but excludes `example-logs` and `example-legacy`. With only exclusions, Getup runs all enabled tasks except those excluded.
+
+Tasks are still run once each in the order they appear in the config, even if multiple arguments match. Unknown names and unmatched patterns are ignored. Tasks with `disabled: true` are skipped unless selected by an inclusion argument; exclusions still apply.
 
 ### Output Format
 File archives are saved using the format `{name}-{timestamp}.tar.{extension}`. Command output is saved as `{name}-{timestamp}.{extension}`. Uncompressed file tasks use `.tar`; uncompressed command tasks have no extension.
